@@ -1,0 +1,8 @@
+Essentia is distributed under the GNU Affero General Public License, version 3.
+
+Upstream project:
+https://github.com/MTG/essentia
+
+The bundled static extractor binaries are official Essentia/AcousticBrainz
+builds. See README.md in this directory for the pinned archives and refresh
+instructions.

@@ -1,0 +1,30 @@
+:root {
+  --bg: #121212;
+  --bg-raised: #1a1a1a;
+  --bg-hover: #222222;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --ink: #ffffff;
+  --ink-muted: rgba(255, 255, 255, 0.55);
+  --ink-faint: rgba(255, 255, 255, 0.32);
+  --danger: #ff6b6b;
+  --success: #7dffa3;
+  --focus: #ffffff;
+  --radius: 10px;
+  --radius-sm: 6px;
+  --font: "IBM Plex Sans Thai", "Sarabun", "Noto Sans Thai", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur: 180ms;
+  --z-dropdown: 20;
+  --z-sticky: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur: 1ms;
+  }
+}
