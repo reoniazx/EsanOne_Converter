@@ -28,6 +28,7 @@ jobs:
         run: npm ci
 
       - name: Verify package versions match
+        shell: bash
         run: |
           node <<'NODE'
           const fs = require('node:fs');
