@@ -99,7 +99,8 @@ OV certificates can still show a SmartScreen warning until reputation builds. EV
 To verify a generated installer locally on Windows:
 
 ```powershell
-signtool verify /pa /all /v .\EsanOne.Converter_*_x64-setup.exe
+$installer = Get-ChildItem .\EsanOne.Converter_*_x64-setup.exe | Select-Object -First 1
+signtool verify /pa /all /v $installer.FullName
 ```
 
 This verifies Authenticode integrity and certificate identity. It does not guarantee immediate SmartScreen reputation. See the official [Tauri Windows installer guide](https://v2.tauri.app/distribute/windows-installer/) and [Tauri Windows code-signing guide](https://v2.tauri.app/distribute/sign/windows/) for certificate details.
