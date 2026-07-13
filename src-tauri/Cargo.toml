@@ -1,6 +1,6 @@
 [package]
 name = "esanone-convert"
-version = "0.1.0"
+version = "0.1.1"
 description = "EsanOne Converter — local stem separation"
 authors = ["EsanOne"]
 edition = "2021"
