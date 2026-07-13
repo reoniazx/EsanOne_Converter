@@ -189,11 +189,10 @@ fn youtube_title_from_path(path: &Path) -> Option<String> {
 }
 
 fn resolve_youtube_title(path: &Path, printed_title: Option<String>) -> Option<String> {
-    youtube_title_from_path(path).or_else(|| {
-        printed_title
-            .map(|title| title.trim().to_string())
-            .filter(|title| !title.is_empty() && !title.contains('\u{FFFD}'))
-    })
+    printed_title
+        .map(|title| title.trim().to_string())
+        .filter(|title| !title.is_empty() && !title.contains('\u{FFFD}'))
+        .or_else(|| youtube_title_from_path(path))
 }
 
 fn wait_for_youtube_child(
@@ -438,6 +437,17 @@ mod tests {
         assert_eq!(
             resolve_youtube_title(path, Some("� -  (Official MV)".into())),
             Some("อยากกอดเธออีกสักครา…ก่อนจากลา - ไทยตรง (Official MV)".into())
+        );
+    }
+
+    #[test]
+    fn prefers_valid_printed_title_over_the_downloaded_filename() {
+        let path =
+            Path::new(r"C:\Users\tester\EsanOne Stem\exports\A shortened title [uOlO0CPs3ac].wav");
+
+        assert_eq!(
+            resolve_youtube_title(path, Some("Original title with • punctuation".into())),
+            Some("Original title with • punctuation".into())
         );
     }
 
