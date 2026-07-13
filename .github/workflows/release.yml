@@ -9,7 +9,55 @@ permissions:
   contents: read
 
 jobs:
+  quality:
+    name: Quality checks
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify package versions match
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const packageVersion = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+          const tauriVersion = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8')).version;
+          const cargo = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+          const cargoVersion = cargo.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+          if (!cargoVersion || new Set([packageVersion, tauriVersion, cargoVersion]).size !== 1) {
+            console.error({ packageVersion, tauriVersion, cargoVersion });
+            process.exit(1);
+          }
+          console.log(`Version ${packageVersion} is consistent.`);
+          NODE
+
+      - name: Run frontend tests
+        run: npm test -- --run
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Run Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
   build:
+    needs: quality
     strategy:
       fail-fast: false
       matrix:
