@@ -112,13 +112,18 @@ mod tests {
 
     #[test]
     fn parses_separate_command() {
+        let input_path = format!(
+            "{}music{}song.wav",
+            std::path::MAIN_SEPARATOR,
+            std::path::MAIN_SEPARATOR
+        );
         let args = vec![
             "app".into(),
             "separate".into(),
             "--model".into(),
             "htdemucs_ft".into(),
             "--path".into(),
-            r"C:\music\song.wav".into(),
+            input_path,
         ];
         let cli = parse_args(&args);
         let sep = cli.separate.expect("separate");
