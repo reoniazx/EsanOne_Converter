@@ -69,42 +69,6 @@ Use a fine-grained token scoped only to `reoniazx/EsanOne-Releases` with `Conten
 
 The public key is already in `src-tauri/tauri.conf.json`. If you regenerate keys, replace `plugins.updater.pubkey` and store the new private key as the secret above.
 
-### Windows installer signing
-
-The Windows NSIS installer is configured for a per-machine install, so Windows asks for Administrator approval and installs the app for all users. The app itself continues to run as a normal user process.
-
-To replace the red **Unknown publisher** warning, the Windows release must be Authenticode-signed with a real Windows code-signing certificate. SSL certificates do not work. Add these GitHub Actions secrets:
-
-| Secret | Value |
-| --- | --- |
-| `WINDOWS_CERTIFICATE` | One-line Base64 content of a `.pfx` certificate containing its private key |
-| `WINDOWS_CERTIFICATE_PASSWORD` | Export password for the `.pfx` file |
-
-Also add this GitHub Actions repository variable:
-
-| Variable | Value |
-| --- | --- |
-| `WINDOWS_TIMESTAMP_URL` | RFC 3161 timestamp URL recommended by the certificate provider |
-
-On PowerShell, create the Base64 secret value without committing the certificate:
-
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes('.\certificate.pfx')) | Set-Clipboard
-```
-
-Paste the clipboard value into `WINDOWS_CERTIFICATE`. Never commit the `.pfx`, password, or Base64 value. The release job fails when signing is not configured, so it cannot silently publish an unsigned Windows installer.
-
-OV certificates can still show a SmartScreen warning until reputation builds. EV certificates or trusted signing services can establish reputation faster, but no certificate type guarantees that the first download is warning-free on every machine.
-
-To verify a generated installer locally on Windows:
-
-```powershell
-$installer = Get-ChildItem .\EsanOne.Converter_*_x64-setup.exe | Select-Object -First 1
-signtool verify /pa /all /v $installer.FullName
-```
-
-This verifies Authenticode integrity and certificate identity. It does not guarantee immediate SmartScreen reputation. See the official [Tauri Windows installer guide](https://v2.tauri.app/distribute/windows-installer/) and [Tauri Windows code-signing guide](https://v2.tauri.app/distribute/sign/windows/) for certificate details.
-
 ### Publish a release
 
 1. Bump the app version in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` (the workflow checks that they match).
