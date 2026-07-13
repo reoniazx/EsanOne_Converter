@@ -72,7 +72,7 @@ The public key is already in `src-tauri/tauri.conf.json`. If you regenerate keys
 ### Publish a release
 
 1. Bump the app version in `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml` (the workflow checks that they match).
-2. Commit and push the version change, then push a tag: `git tag v0.1.1 && git push origin v0.1.1`.
+2. Commit and push the version change, then push the release tag: `git tag v1.0.1 && git push origin v1.0.1`.
 3. GitHub Actions runs tests, checks the version, builds all platforms, signs updater artifacts, and publishes them to the public `EsanOne-Releases` repository. If any check fails, no release is published.
 
 Update endpoint:

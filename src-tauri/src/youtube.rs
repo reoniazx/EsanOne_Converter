@@ -168,6 +168,34 @@ fn build_youtube_args(output_template: &str, url: &str) -> Vec<String> {
     ]
 }
 
+fn youtube_title_from_path(path: &Path) -> Option<String> {
+    let stem = path.file_stem()?.to_str()?.trim();
+    if stem.is_empty() {
+        return None;
+    }
+
+    let title = stem
+        .rsplit_once(" [")
+        .and_then(|(title, suffix)| {
+            let id = suffix.strip_suffix(']')?;
+            (id.len() == 11
+                && id.chars().all(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '-' | '_')
+                }))
+            .then_some(title)
+        })
+        .unwrap_or(stem);
+    Some(title.to_string())
+}
+
+fn resolve_youtube_title(path: &Path, printed_title: Option<String>) -> Option<String> {
+    youtube_title_from_path(path).or_else(|| {
+        printed_title
+            .map(|title| title.trim().to_string())
+            .filter(|title| !title.is_empty() && !title.contains('\u{FFFD}'))
+    })
+}
+
 fn wait_for_youtube_child(
     state: &YoutubeState,
     cancelled: &Arc<Mutex<bool>>,
@@ -253,6 +281,7 @@ pub fn youtube_download(
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
+            stem_separate::configure_python_utf8(&mut command);
             #[cfg(windows)]
             {
                 use std::os::windows::process::CommandExt;
@@ -344,6 +373,7 @@ pub fn youtube_download(
 
             let path =
                 path.ok_or_else(|| "Download finished but no audio file was found.".to_string())?;
+            let title = resolve_youtube_title(Path::new(&path), title);
             Ok((path, title))
         })();
 
@@ -397,5 +427,39 @@ mod tests {
             Some("https://www.youtube.com/watch?v=abc")
         );
         assert_eq!(args.get(args.len() - 2).map(String::as_str), Some("--"));
+    }
+
+    #[test]
+    fn derives_title_from_unicode_downloaded_filename_when_printed_title_is_corrupt() {
+        let path = Path::new(
+            r"C:\Users\tester\EsanOne Stem\exports\อยากกอดเธออีกสักครา…ก่อนจากลา - ไทยตรง (Official MV) [uOlO0CPs3ac].wav",
+        );
+
+        assert_eq!(
+            resolve_youtube_title(path, Some("� -  (Official MV)".into())),
+            Some("อยากกอดเธออีกสักครา…ก่อนจากลา - ไทยตรง (Official MV)".into())
+        );
+    }
+
+    #[test]
+    fn youtube_processes_force_utf8_output() {
+        let mut command = Command::new("yt-dlp");
+        stem_separate::configure_python_utf8(&mut command);
+        let envs = command
+            .get_envs()
+            .filter_map(|(key, value)| {
+                Some((
+                    key.to_string_lossy().into_owned(),
+                    value?.to_string_lossy().into_owned(),
+                ))
+            })
+            .collect::<Vec<_>>();
+
+        assert!(envs
+            .iter()
+            .any(|(key, value)| { key == "PYTHONIOENCODING" && value == "utf-8" }));
+        assert!(envs
+            .iter()
+            .any(|(key, value)| key == "PYTHONUTF8" && value == "1"));
     }
 }

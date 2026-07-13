@@ -1071,6 +1071,12 @@ fn write_demucs_wrapper() -> Result<PathBuf, String> {
     Ok(path)
 }
 
+pub(crate) fn configure_python_utf8(command: &mut Command) {
+    command
+        .env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1");
+}
+
 #[tauri::command]
 pub async fn stem_tool_status(
     state: State<'_, StemSeparateState>,
@@ -1257,6 +1263,7 @@ fn spawn_logged(program: &Path, args: &[&str]) -> Result<Child, String> {
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    configure_python_utf8(&mut command);
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
@@ -3121,6 +3128,28 @@ mod tests {
         let url = melbandroformer_weights_url();
         assert!(url.contains(MELBANDROFORMER_WEIGHTS_REVISION));
         assert!(!url.contains("/resolve/main/"));
+    }
+
+    #[test]
+    fn python_separation_processes_force_utf8_output() {
+        let mut command = Command::new("python");
+        configure_python_utf8(&mut command);
+        let envs = command
+            .get_envs()
+            .filter_map(|(key, value)| {
+                Some((
+                    key.to_string_lossy().into_owned(),
+                    value?.to_string_lossy().into_owned(),
+                ))
+            })
+            .collect::<Vec<_>>();
+
+        assert!(envs
+            .iter()
+            .any(|(key, value)| { key == "PYTHONIOENCODING" && value == "utf-8" }));
+        assert!(envs
+            .iter()
+            .any(|(key, value)| key == "PYTHONUTF8" && value == "1"));
     }
 
     #[test]

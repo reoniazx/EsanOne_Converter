@@ -1026,7 +1026,7 @@ dependencies = [
 
 [[package]]
 name = "esanone-convert"
-version = "0.1.1"
+version = "1.0.1"
 dependencies = [
  "reqwest 0.12.28",
  "serde",
