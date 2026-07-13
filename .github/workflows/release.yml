@@ -66,7 +66,7 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
-            args: ""
+            args: "--config src-tauri/tauri.windows.signing.conf.json"
           - platform: macos-latest
             args: "--target aarch64-apple-darwin"
           - platform: macos-latest
@@ -104,6 +104,55 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Import Windows signing certificate
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE)) {
+            throw 'WINDOWS_CERTIFICATE GitHub Secret is required for Windows releases.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)) {
+            throw 'WINDOWS_CERTIFICATE_PASSWORD GitHub Secret is required for Windows releases.'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_TIMESTAMP_URL)) {
+            throw 'WINDOWS_TIMESTAMP_URL GitHub repository variable is required for Windows releases.'
+          }
+
+          $certificateDir = Join-Path $env:GITHUB_WORKSPACE 'certificate'
+          New-Item -ItemType Directory -Force -Path $certificateDir | Out-Null
+          $pfxPath = Join-Path $certificateDir 'certificate.pfx'
+          $signingConfigPath = Join-Path $env:GITHUB_WORKSPACE 'src-tauri\tauri.windows.signing.conf.json'
+
+          try {
+            $encoded = ($env:WINDOWS_CERTIFICATE -replace '\s', '')
+            [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($encoded))
+            $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+            $certificate = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $password |
+              Select-Object -First 1
+            if ($null -eq $certificate -or [string]::IsNullOrWhiteSpace($certificate.Thumbprint)) {
+              throw 'The Windows certificate did not import with a usable thumbprint.'
+            }
+
+            $signingConfig = [ordered]@{
+              bundle = [ordered]@{
+                windows = [ordered]@{
+                  certificateThumbprint = $certificate.Thumbprint
+                  digestAlgorithm = 'sha256'
+                  timestampUrl = $env:WINDOWS_TIMESTAMP_URL
+                }
+              }
+            }
+            $signingConfig | ConvertTo-Json -Depth 5 | Set-Content -Path $signingConfigPath -Encoding utf8
+          } catch {
+            Remove-Item -Force -ErrorAction SilentlyContinue $pfxPath, $signingConfigPath
+            throw
+          }
+
       - name: Build and upload release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -122,6 +171,43 @@ jobs:
           prerelease: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
+
+      - name: Verify Windows Authenticode signatures
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $windowsKitRoots = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'),
+            (Join-Path $env:ProgramFiles 'Windows Kits\10\bin')
+          ) | Where-Object { Test-Path $_ }
+          $signtool = Get-ChildItem -Path $windowsKitRoots -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+          if ($null -eq $signtool) {
+            throw 'signtool.exe was not found on the Windows runner.'
+          }
+
+          $installer = Get-ChildItem -Path 'src-tauri\target\release\bundle\nsis' -Filter '*-setup.exe' -File |
+            Select-Object -First 1
+          $application = Get-Item 'src-tauri\target\release\esanone-convert.exe' -ErrorAction SilentlyContinue
+          if ($null -eq $installer -or $null -eq $application) {
+            throw 'Expected signed NSIS installer or application executable was not generated.'
+          }
+
+          foreach ($artifact in @($installer, $application)) {
+            & $signtool.FullName verify /pa /all /v $artifact.FullName
+            if ($LASTEXITCODE -ne 0) {
+              throw "Authenticode verification failed for $($artifact.FullName)."
+            }
+          }
+
+      - name: Remove Windows signing material
+        if: always() && matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue 'certificate'
+          Remove-Item -Force -ErrorAction SilentlyContinue 'src-tauri\tauri.windows.signing.conf.json'
 
   publish:
     name: Publish update channel
